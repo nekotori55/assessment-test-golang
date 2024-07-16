@@ -1,10 +1,14 @@
 package account
 
-import "errors"
+import (
+	"errors"
+	"sync"
+)
 
 type account struct {
 	id      string
 	balance float64
+	mu      sync.Mutex
 }
 
 func NewAccount() account {
@@ -20,6 +24,9 @@ type BankAccount interface {
 }
 
 func (a *account) Deposit(amount float64) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	if amount < 0 {
 		return errors.New("amount must be positive")
 	}
@@ -28,6 +35,9 @@ func (a *account) Deposit(amount float64) error {
 }
 
 func (a *account) Withdraw(amount float64) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	if amount < 0 {
 		return errors.New("amount must be positive")
 	}
@@ -39,5 +49,7 @@ func (a *account) Withdraw(amount float64) error {
 }
 
 func (a *account) GetBalance() float64 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	return a.balance
 }
