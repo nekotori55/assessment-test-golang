@@ -19,7 +19,7 @@ type BankAccount interface {
 	GetBalance() float64
 }
 
-func (a account) Deposit(amount float64) error {
+func (a *account) Deposit(amount float64) error {
 	if amount < 0 {
 		return errors.New("amount must be positive")
 	}
@@ -27,7 +27,7 @@ func (a account) Deposit(amount float64) error {
 	return nil
 }
 
-func (a account) Withdraw(amount float64) error {
+func (a *account) Withdraw(amount float64) error {
 	if amount < 0 {
 		return errors.New("amount must be positive")
 	}
@@ -38,6 +38,6 @@ func (a account) Withdraw(amount float64) error {
 	return nil
 }
 
-func (a account) GetBalance() float64 {
+func (a *account) GetBalance() float64 {
 	return a.balance
 }
