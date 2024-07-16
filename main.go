@@ -2,9 +2,10 @@ package main
 
 import (
 	acc "assessment-test/account"
+	accs "assessment-test/account_manager"
+
 	"fmt"
 	"strconv"
-	"sync"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/gofiber/fiber/v2/log"
 	// "github.com/gofiber/fiber/v2/middleware/logger"
 )
+
+var accountStorageOperations = make(chan accs.Operation)
 
 func main() {
 	app := fiber.New()
@@ -21,6 +24,10 @@ func main() {
 	// app.Use(logger.New(logger.Config{
 	// 	Format: "${time} ${method} ${status} ${path}\n",
 	// }))
+	//
+
+	// Запуск горутины по обработке операций с хранением аккаунтов
+	go accs.ProcessOperations(accountStorageOperations)
 
 	app.Post("/accounts", CreateAccountHandler)
 
@@ -33,14 +40,17 @@ func main() {
 	app.Listen(":3000")
 }
 
-var accounts = make(map[string]acc.BankAccount)
-var accountsMutex sync.RWMutex
+func findAccountByID(id string) (acc.BankAccount, error) {
+	errChannel := make(chan error)
+	resChannel := make(chan interface{})
+	accountStorageOperations <- accs.Operation{Action: "get", Id: id, Result: resChannel, Err: errChannel}
 
-func findAccountByID(id string) (acc.BankAccount, bool) {
-	accountsMutex.RLock()
-	defer accountsMutex.RUnlock()
-	acct, found := accounts[id]
-	return acct, found
+	res := <-resChannel
+	if res == nil {
+		return nil, <-errChannel
+	}
+
+	return res.(acc.BankAccount), <-errChannel
 }
 
 func WithdrawHandler(c *fiber.Ctx) error {
@@ -52,24 +62,13 @@ func WithdrawHandler(c *fiber.Ctx) error {
 		return fiber.ErrBadRequest
 	}
 
-	account, found := findAccountByID(idParam)
-	if !found {
+	account, err := findAccountByID(idParam)
+	if err != nil {
 		log.Error("id not found: " + idParam)
-		return fiber.NewError(fiber.StatusNotFound, "account with this id was not found")
+		return fiber.NewError(fiber.StatusNotFound, err.Error())
 	}
 
-	// Горутина использована чисто демонстрационно (для задания)
-	// Т.к. по умолчанию фреймворк fiber запускает обработчики как горутины,
-	// а логика не требует дополнительных горутин и, следовательно, каналов
-	//
-	// так же горутины можно было бы перенести в сами методы операций с аккаунтом,
-	// в данном случае разницы никакой
-	errChannel := make(chan error)
-	go func() {
-		errChannel <- account.Withdraw(amount)
-	}()
-	err = <-errChannel
-
+	err = account.Withdraw(amount)
 	if err != nil {
 		log.Error("[id: " + idParam + "] " + err.Error())
 		return fiber.NewError(fiber.StatusForbidden, err.Error())
@@ -88,17 +87,13 @@ func DepositHandler(c *fiber.Ctx) error {
 		return fiber.ErrBadRequest
 	}
 
-	account, found := findAccountByID(idParam)
-	if !found {
+	account, err := findAccountByID(idParam)
+	if err != nil {
 		log.Error("id not found: " + idParam)
 		return fiber.NewError(fiber.StatusNotFound, "Error! Account with this id was not found")
 	}
 
-	errChannel := make(chan error)
-	go func() {
-		errChannel <- account.Deposit(amount)
-	}()
-	err = <-errChannel
+	err = account.Deposit(amount)
 
 	if err != nil {
 		log.Error("[id: " + idParam + "] " + err.Error())
@@ -115,17 +110,13 @@ func GetBalanceHandler(c *fiber.Ctx) error {
 		return fiber.ErrBadRequest
 	}
 
-	account, found := findAccountByID(idParam)
-	if !found {
+	account, err := findAccountByID(idParam)
+	if err != nil {
 		log.Error("id not found: " + idParam)
 		return fiber.NewError(fiber.StatusNotFound, "Error! Account with this id was not found")
 	}
 
-	result := make(chan float64)
-	go func() {
-		result <- account.GetBalance()
-	}()
-	amount := <-result
+	amount := account.GetBalance()
 
 	amountStr := fmt.Sprint(amount)
 	log.Info("[id: " + idParam + "] requested their balance, which is: " + amountStr)
@@ -133,12 +124,9 @@ func GetBalanceHandler(c *fiber.Ctx) error {
 }
 
 func CreateAccountHandler(c *fiber.Ctx) error {
-	accountsMutex.Lock()
-	defer accountsMutex.Unlock()
-
-	newAccount := acc.NewAccount()
-	id := newAccount.GetID()
-	accounts[id] = &newAccount
+	resChannel := make(chan interface{})
+	accountStorageOperations <- accs.Operation{Action: "add", Result: resChannel}
+	id := (<-resChannel).(string)
 
 	log.Info("Account was created with id = " + id)
 	return c.SendString("Successfully created an account with id: " + id)

@@ -2,19 +2,54 @@ package account
 
 import (
 	"errors"
-	"sync"
 )
 
 type account struct {
-	id      string
-	balance float64
-	mu      sync.Mutex
+	id         string
+	balance    float64
+	operations chan Operation
+}
+
+type Operation struct {
+	action string
+	amount float64
+	result chan float64
+	err    chan error
+}
+
+func (a *account) ProcessOperations() {
+	for op := range a.operations {
+		if op.amount <= 0 {
+			op.err <- errors.New("Amount must be greater than zero")
+			continue
+		}
+
+		switch op.action {
+		case "deposit":
+			a.balance += op.amount
+			op.err <- nil
+		case "withdraw":
+			if a.balance >= op.amount {
+				a.balance -= op.amount
+				op.err <- nil
+			} else {
+				op.err <- errors.New("Insufficient funds")
+			}
+		case "balance":
+			op.result <- a.balance
+			op.err <- nil
+		}
+	}
 }
 
 func NewAccount() account {
-	return account{
-		id: GetNewID(),
+	a := account{
+		id:         GetNewID(),
+		operations: make(chan Operation),
 	}
+	// Запуск горутины по обработке операций
+	go a.ProcessOperations()
+	return a
 }
 
 func (a *account) GetID() string {
@@ -30,33 +65,19 @@ type BankAccount interface {
 }
 
 func (a *account) Deposit(amount float64) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	// По-хорошему валидацию надо бы проводить на уровне хэндлера
-	if amount <= 0 {
-		return errors.New("amount must be positive")
-	}
-	a.balance += amount
-	return nil
+	err := make(chan error)
+	a.operations <- Operation{action: "deposit", amount: amount, err: err}
+	return <-err
 }
 
 func (a *account) Withdraw(amount float64) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	if amount <= 0 {
-		return errors.New("amount must be positive")
-	}
-	if (a.balance - amount) < 0 {
-		return errors.New("insufficient funds")
-	}
-	a.balance -= amount
-	return nil
+	err := make(chan error)
+	a.operations <- Operation{action: "withdraw", amount: amount, err: err}
+	return <-err
 }
 
 func (a *account) GetBalance() float64 {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.balance
+	result := make(chan float64)
+	a.operations <- Operation{action: "balance", result: result}
+	return <-result
 }
