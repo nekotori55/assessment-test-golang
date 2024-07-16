@@ -17,6 +17,12 @@ func NewAccount() account {
 	}
 }
 
+func (a *account) GetID() string {
+	// id - immutable,
+	// поэтому потоковая безопасность не нужна
+	return a.id
+}
+
 type BankAccount interface {
 	Deposit(amount float64) error
 	Withdraw(amount float64) error
