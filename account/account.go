@@ -2,6 +2,8 @@ package account
 
 import (
 	"errors"
+
+	"github.com/gofiber/fiber/v2/log"
 )
 
 type account struct {
@@ -25,7 +27,8 @@ type BankAccount interface {
 
 func (a *account) ProcessOperations() {
 	for op := range a.operations {
-		if op.amount <= 0 {
+		if op.amount <= 0 && op.action != "balance" {
+			log.Debug("Hi ")
 			op.err <- errors.New("Amount must be greater than zero")
 			continue
 		}
@@ -43,7 +46,6 @@ func (a *account) ProcessOperations() {
 			}
 		case "balance":
 			op.result <- a.balance
-			op.err <- nil
 		}
 	}
 }
