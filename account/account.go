@@ -17,6 +17,12 @@ type Operation struct {
 	err    chan error
 }
 
+type BankAccount interface {
+	Deposit(amount float64) error
+	Withdraw(amount float64) error
+	GetBalance() float64
+}
+
 func (a *account) ProcessOperations() {
 	for op := range a.operations {
 		if op.amount <= 0 {
@@ -56,12 +62,6 @@ func (a *account) GetID() string {
 	// id - immutable,
 	// поэтому потоковая безопасность не нужна
 	return a.id
-}
-
-type BankAccount interface {
-	Deposit(amount float64) error
-	Withdraw(amount float64) error
-	GetBalance() float64
 }
 
 func (a *account) Deposit(amount float64) error {
