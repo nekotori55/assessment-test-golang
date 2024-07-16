@@ -2,9 +2,15 @@ package account
 
 import "errors"
 
-type Account struct {
+type account struct {
 	id      string
 	balance float64
+}
+
+func NewAccount() account {
+	return account{
+		id: GetNewID(),
+	}
 }
 
 type BankAccount interface {
@@ -13,7 +19,7 @@ type BankAccount interface {
 	GetBalance() float64
 }
 
-func (a Account) Deposit(amount float64) error {
+func (a account) Deposit(amount float64) error {
 	if amount < 0 {
 		return errors.New("amount must be positive")
 	}
@@ -21,7 +27,7 @@ func (a Account) Deposit(amount float64) error {
 	return nil
 }
 
-func (a Account) Withdraw(amount float64) error {
+func (a account) Withdraw(amount float64) error {
 	if amount < 0 {
 		return errors.New("amount must be positive")
 	}
@@ -32,6 +38,6 @@ func (a Account) Withdraw(amount float64) error {
 	return nil
 }
 
-func (a Account) GetBalance() float64 {
+func (a account) GetBalance() float64 {
 	return a.balance
 }
