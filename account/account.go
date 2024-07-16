@@ -33,7 +33,8 @@ func (a *account) Deposit(amount float64) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if amount < 0 {
+	// По-хорошему валидацию надо бы проводить на уровне хэндлера
+	if amount <= 0 {
 		return errors.New("amount must be positive")
 	}
 	a.balance += amount
@@ -44,7 +45,7 @@ func (a *account) Withdraw(amount float64) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if amount < 0 {
+	if amount <= 0 {
 		return errors.New("amount must be positive")
 	}
 	if (a.balance - amount) < 0 {
